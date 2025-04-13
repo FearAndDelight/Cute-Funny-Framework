@@ -20,17 +20,18 @@ using Il2CppScheduleOne.NPCs;
 using System.Runtime.CompilerServices;
 using System.Reflection.Emit;
 using System.Xml.Linq;
-using System.Runtime.Remoting.Metadata.W3cXsd2001;
+using UnityEngine.PlayerLoop;
 
 
 namespace Cunny
 {
     public class Core : MelonMod
     {
-
+        public static Core Instance;
         //UI Elements
         ScrollRect HomeScreenScrollRect;
         GameObject IconsPageTemplate;
+        GameObject CompatabilityIconsPage; //This is here soley to catch any apps trying to edit icons.
         GameObject HomeScreenScrollRectContent;
         HorizontalLayoutGroup HomeScreenHorizontalLayoutGroup;
 
@@ -42,80 +43,170 @@ namespace Cunny
         private int currentAppPage = 0;
         bool IsHomeScreenSnapped = false;
         float snapSpeed;
-        float snapForce = 100f;
+        float snapForce = 50f;
         private float snapOffset = -30f; // Now positive for left offset
         private float snapDuration = 0.15f;
         private float snapVelocity;
+        private float snapVelocityThreshold = 200f;
         private bool isInitialSnapDone;
+        private RectTransform contentRect;
+        private bool isDraggingBlocked;
+        private float mouseDownTime;
+        private Vector2 mouseDownPosition;
+        private float minHoldDuration = 0.15f;
+        private float dragThreshold = 15f;
 
         //Core Values
         public bool IsCunnyLoaded = false;
-
+        public override void OnInitializeMelon()
+        {
+            Instance = this;
+        }
         public override void OnUpdate()
         {
-            if (IsCunnyLoaded && !isInitialSnapDone) { SnapImmediately(0); isInitialSnapDone = true;}
-            if (!IsCunnyLoaded || !isInitialSnapDone || UIAppPages.Count > 1) return;
+            if (!IsCunnyLoaded) return;
 
-            float pageWidth = UIAppPages[0].GetComponent<RectTransform>().rect.width + HomeScreenHorizontalLayoutGroup.spacing;
-            float currentPos = HomeScreenScrollRectContent.GetComponent<RectTransform>().anchoredPosition.x;
-            int totalPages = UIAppPages.Count;
-
-            // Calculate page with offset compensation
-            int currentPage = Mathf.RoundToInt((-currentPos - snapOffset) / pageWidth);
-            currentPage = Mathf.Clamp(currentPage, 0, totalPages - 1);
-            currentAppPage = currentPage;
-
-            // Calculate target position with boundary constraints
-            float targetPosX = Mathf.Clamp(
-                -currentPage * pageWidth - snapOffset,
-                -((totalPages - 1) * pageWidth + snapOffset), // Min position
-                -snapOffset // Max position
-            );
-
-            // Handle boundary cases with direct snapping
-            if (currentPos > -snapOffset || currentPos < -((totalPages - 1) * pageWidth + snapOffset))
+            // Initialize references
+            if (contentRect == null)
             {
-                SnapImmediately(currentPage);
+                contentRect = HomeScreenScrollRectContent.GetComponent<RectTransform>();
+                if (contentRect == null) return;
+            }
+
+            // Toggle scrolling capability
+            HomeScreenScrollRect.enabled = UIAppPages.Count > 1;
+
+            if (!HomeScreenScrollRect.enabled)
+            {
+                if (!isInitialSnapDone)
+                {
+                    SnapImmediately(0);
+                    isInitialSnapDone = true;
+                }
                 return;
             }
 
-            // Handle regular snapping
-            if (!HomeScreenScrollRect.m_Dragging && !IsHomeScreenSnapped)
+            // Drag initialization logic
+            if (Input.GetMouseButtonDown(0))
             {
-                HomeScreenScrollRect.velocity = Vector2.zero;
+                mouseDownTime = Time.time;
+                mouseDownPosition = Input.mousePosition;
+                isDraggingBlocked = true;
+            }
 
-                float newX = Mathf.SmoothDamp(currentPos, targetPosX, ref snapVelocity, snapDuration);
-                HomeScreenScrollRectContent.GetComponent<RectTransform>().anchoredPosition =
-                    new Vector2(newX, HomeScreenScrollRectContent.GetComponent<RectTransform>().anchoredPosition.y);
+            // Check if we should block dragging
+            if (Input.GetMouseButton(0) && isDraggingBlocked)
+            {
+                var mouseDelta = Vector2.Distance(Input.mousePosition, mouseDownPosition);
+                var holdTime = Time.time - mouseDownTime;
 
-                if (Mathf.Abs(newX - targetPosX) < 1f)
+                if (holdTime >= minHoldDuration || mouseDelta >= dragThreshold)
                 {
-                    SnapImmediately(currentPage);
+                    isDraggingBlocked = false;
                 }
             }
 
-            if (HomeScreenScrollRect.velocity.magnitude > 200 || HomeScreenScrollRect.m_Dragging)
+            // Cancel accidental drags
+            if (isDraggingBlocked && HomeScreenScrollRect.m_Dragging)
             {
-                IsHomeScreenSnapped = false;
+                HomeScreenScrollRect.velocity = Vector2.zero;
+                SnapImmediately(currentAppPage);
+                HomeScreenScrollRect.StopMovement();
+            }
+
+            // Initial snap logic
+            if (!isInitialSnapDone)
+            {
+                SnapImmediately(0);
+                isInitialSnapDone = true;
+                return;
+            }
+
+            // Main scrolling logic
+            int totalPages = UIAppPages.Count;
+            if (totalPages == 0) return;
+
+            float pageWidth = UIAppPages[0].GetComponent<RectTransform>().rect.width +
+                            HomeScreenHorizontalLayoutGroup.spacing;
+            float currentPos = contentRect.anchoredPosition.x;
+
+            currentAppPage = Mathf.Clamp(
+                Mathf.RoundToInt((-currentPos - snapOffset) / pageWidth),
+                0,
+                totalPages - 1
+            );
+
+            float targetPos = -currentAppPage * pageWidth - snapOffset;
+            float minPos = -((totalPages - 1) * pageWidth + snapOffset);
+            float maxPos = -snapOffset;
+
+            if (currentPos < minPos || currentPos > maxPos ||
+                (!HomeScreenScrollRect.m_Dragging && Mathf.Abs(currentPos - targetPos) < 1f))
+            {
+                SnapImmediately(currentAppPage);
+                return;
+            }
+
+            if (!HomeScreenScrollRect.m_Dragging && !isDraggingBlocked)
+            {
+                contentRect.anchoredPosition = new Vector2(
+                    Mathf.SmoothDamp(currentPos, targetPos, ref snapVelocity, snapDuration),
+                    contentRect.anchoredPosition.y
+                );
+            }
+
+            if ((HomeScreenScrollRect.m_Dragging ||
+                HomeScreenScrollRect.velocity.magnitude > snapVelocityThreshold) && !isDraggingBlocked)
+            {
+                HomeScreenScrollRect.velocity = Vector2.zero;
                 snapVelocity = 0;
             }
         }
 
         private void SnapImmediately(int page)
         {
-            float pageWidth = UIAppPages[0].GetComponent<RectTransform>().rect.width + HomeScreenHorizontalLayoutGroup.spacing;
+            if (UIAppPages.Count == 0) return;
+
+            float pageWidth = UIAppPages[0].GetComponent<RectTransform>().rect.width +
+                             HomeScreenHorizontalLayoutGroup.spacing;
             float targetPos = Mathf.Clamp(
                 -page * pageWidth - snapOffset,
                 -((UIAppPages.Count - 1) * pageWidth + snapOffset),
                 -snapOffset
             );
 
-            HomeScreenScrollRectContent.GetComponent<RectTransform>().anchoredPosition =
-                new Vector2(targetPos, HomeScreenScrollRectContent.GetComponent<RectTransform>().anchoredPosition.y);
-            IsHomeScreenSnapped = true;
+            contentRect.anchoredPosition = new Vector2(targetPos, contentRect.anchoredPosition.y);
             snapVelocity = 0;
         }
 
+        public override void OnLateUpdate()
+        {
+            //experimental backwards compatability layer
+            bool toggle = false;
+            if (!IsCunnyLoaded) return;
+            if (CompatabilityIconsPage.GetComponentsInChildren<Transform>().Count > 1) {
+                LoggerInstance.Msg("Missing app found, attempting to patch." + " Count: " + (CompatabilityIconsPage.GetComponentsInChildren<Transform>().Count-1));
+                var children = CompatabilityIconsPage.GetComponentsInChildren<Transform>(true)
+                                 .Select(t => t.gameObject)
+                                 .Where(obj => obj.transform != CompatabilityIconsPage)
+                                 .ToArray();
+                foreach (var child in children)
+                {
+                    MelonCoroutines.Start(Patcher(child));
+                }
+            }
+
+            IEnumerator Patcher(GameObject child)
+            {
+                while (!toggle)
+                {
+                    toggle = true;
+                    yield return new WaitForSeconds(5f);
+                }
+                RegisterApp(child);
+                toggle = false;
+            }
+        }
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             LoggerInstance.Msg(string.Format("Scene loaded: {0} ({1})", sceneName, buildIndex));
@@ -144,6 +235,7 @@ namespace Cunny
             IconsPageTemplate = null;
             HomeScreenScrollRectContent = null;
             HomeScreenHorizontalLayoutGroup = null;
+            CompatabilityIconsPage = null;
 
             // Clear Lists
             UIAppPages.Clear();
@@ -163,7 +255,7 @@ namespace Cunny
             IsCunnyLoaded = false;
         }
         private IEnumerator InitCunny()
-        {
+        {   
             GameObject HomeScreen = null;
             GameObject Icons = null;
             yield return MelonCoroutines.Start(CoroutineUtils.WaitForObjectByFrame("Player_Local/CameraContainer/Camera/OverlayCamera/GameplayMenu/Phone/phone/HomeScreen/AppIcons/",
@@ -230,6 +322,10 @@ namespace Cunny
             IconsPageTemplate = UnityEngine.Object.Instantiate(Icons, null);
             Utils.ClearChildren(IconsPageTemplate.transform);
 
+            //Make a fake version of the icons page for compatability reasons.
+            CompatabilityIconsPage = new GameObject("AppIcons", Il2CppType.Of<RectTransform>());
+            CompatabilityIconsPage.transform.SetParent(HomeScreen.transform, true);
+
             LoggerInstance.Msg("[INIT COMPLETE] Cloned & Cleaned AppUI");
             IsCunnyLoaded = true;
         }
@@ -260,8 +356,30 @@ namespace Cunny
                 }
             }
         }
+        public void RegisterApp(GameObject App, string Title="Unknown App")
+        {
+            //if this app exceeds the app count then simply create a new page
+            if (AllApps[AllApps.Count - 1].Count >= 12)
+            {
+                LoggerInstance.Msg("Exceeded Space For Page: " + (AllApps.Count - 1) + " Creating New Page");
+                AllApps.Add(new System.Collections.Generic.List<GameObject>());
+                //Clone the template, and put it in uiapppages
+                UIAppPages.Add(UnityEngine.Object.Instantiate(IconsPageTemplate, HomeScreenScrollRectContent.transform));
+                GridLayoutGroup Grid = UIAppPages[UIAppPages.Count - 1].GetComponent<GridLayoutGroup>();
+                Grid.enabled = true;
+                UIAppPages[UIAppPages.Count - 1].name = "AppIcons" + UIAppPages.Count;
+            }
 
-        public IEnumerator CreateApp(string IDName, string Title,bool IsRotated, string IconPath)
+            AllApps[AllApps.Count - 1].Add(App);
+            App.transform.SetParent(UIAppPages[UIAppPages.Count - 1].transform, false);
+            LoggerInstance.Msg("Added " + Title + " to Page: " + (AllApps.Count));
+        }
+        public void UnregisterApp(GameObject App)
+        {
+            //Todo: Add the ability to unregister apps and move them to a "deleted" 
+        }
+
+        public IEnumerator CreateApp(string IDName, string Title,bool IsRotated = true, string IconPath = null)
         {
 
             GameObject CloningCandiate = null;
@@ -289,7 +407,7 @@ namespace Cunny
             newApp.transform.Find("Container/Background").GetComponent<Image>().color = new Color32(240, 240, 240, 255);
             newApp.name = IDName;
 
-            GameObject Ico = LocatorUtils.GetAppIconByName(CloningName, 1);
+            GameObject Ico = LocatorUtils.GetAppIconByName(CloningName, 1); 
             Transform transform = Ico.transform.Find("Label");
             GameObject gameObject3 = (transform != null) ? transform.gameObject : null;
             bool flag3 = gameObject3 != null;
@@ -303,26 +421,7 @@ namespace Cunny
                 }
             }
             ChangeAppIconImage(Ico, IconPath);
-
-            //if this app exceeds the app count then simply create a new page
-            if (AllApps[AllApps.Count-1].Count >= 12)
-            {
-                LoggerInstance.Msg("Exceeded Space For Page: " + (AllApps.Count - 1) + " Creating New Page");
-                AllApps.Add(new System.Collections.Generic.List<GameObject>());
-                //Clone the template, and put it in uiapppages
-                UIAppPages.Add(UnityEngine.Object.Instantiate(IconsPageTemplate, HomeScreenScrollRectContent.transform));
-                GridLayoutGroup Grid = UIAppPages[UIAppPages.Count - 1].GetComponent<GridLayoutGroup>();
-                Grid.enabled = true;
-                UIAppPages[UIAppPages.Count - 1].name = "AppIcons" + UIAppPages.Count;
-            }
-            
-            AllApps[AllApps.Count - 1].Add(Ico);
-            UIAppPages[UIAppPages.Count - 1].active = true;
-            Ico.transform.SetParent(UIAppPages[UIAppPages.Count - 1].transform, false);
-            //UIAppPages[UIAppPages.Count - 1].active = false;
-
-            UIAppPages[currentAppPage].active = true;
-            LoggerInstance.Msg("Added "+ Title + " to Page: " + (AllApps.Count));
+            RegisterApp(Ico,Title);
         }
     }
 }

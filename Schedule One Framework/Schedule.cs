@@ -21,17 +21,23 @@ using System.Runtime.CompilerServices;
 using System.Reflection.Emit;
 using System.Xml.Linq;
 using System.Runtime.Remoting.Metadata.W3cXsd2001;
+using Il2CppScheduleOne.Employees;
+using Il2CppScheduleOne.Property;
+using Il2CppScheduleOne.Vehicles;
 
 namespace Cunny
 {
     //This class is dedicated to calling functions within Schedule 1
     public class Schedule
     {
+        //This function will be removed in future versions!!!
+        //(I decided it would be better to just call this directly from Il2CppScheduleOne.UI)
         public static void CreateNotification(string title, string subtitle, Sprite icon, float duration = 5f, bool playSound = true)
         {
             GameObject gameObject = GameObject.Find("UI/HUD/NotificationContainer");
             NotificationsManager component = gameObject.GetComponent<NotificationsManager>();
             component.SendNotification(title, subtitle, icon, duration, playSound);
+            Debug.LogWarning("[CUNNY] Schedule.CreateNotification() is a deprecated function that will be removed in future versions! Please use Il2CppScheduleOne.UI.NotificationsManager.Instance.SendNotification() instead!");
         }
     }
 }
