@@ -48,7 +48,7 @@ namespace Cunny
 
         public static GameObject GetAppCanvasByName(string Name) //Just here to avoid having to use the big name every time.
         {
-            GameObject gameObject = GameObject.Find("Player_Local/CameraContainer/Camera/OverlayCamera/GameplayMenu/Phone/phone/AppCanvas");
+            GameObject gameObject = GameObject.Find("Player_Local/CameraContainer/Camera/OverlayCamera/GameplayMenu/Phone/phone/AppsCanvas/");
             return gameObject.transform.Find(Name).gameObject;
         }
     }
