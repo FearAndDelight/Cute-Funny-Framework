@@ -16,7 +16,7 @@ MelonCoroutines.Start(Cunny.Core.Instance.CreateApp("ID","APPNAME"))
 GameObject canvas = Cunny.LocatorUtils.GetAppCanvasByName("APPNAME");
 GameObject icon = Cunny.LocatorUtils.GetAppIconByName("APPNAME");
 ```
-* (Experimental, will be introduced 0.2.0) Creation of custom NPCS, schedules, and application of cosmetics
+* (Experimental, will be introduced 0.3.0) Creation of custom NPCS, schedules, and application of cosmetics
 !!!THIS IS A FUTURE FEATURE, SO THIS WILL BE SUBJECT TO CHANGE!!!
 ```
 var goober = Cunny.Advanced.NPCHandler.SpawnCivPrefab();
