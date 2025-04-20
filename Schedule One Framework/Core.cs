@@ -21,6 +21,14 @@ using System.Runtime.CompilerServices;
 using System.Reflection.Emit;
 using System.Xml.Linq;
 using UnityEngine.PlayerLoop;
+using Il2CppFishNet.Connection;
+using Il2CppFishNet.Managing;
+using Il2CppFishNet.Managing.Object;
+using Il2CppFishNet.Object;
+using Il2CppFishNet.Managing.Client;
+using Il2CppScheduleOne.Clothing;
+using Il2CppScheduleOne.ItemFramework;
+using Il2CppScheduleOne.Growing;
 
 
 namespace Cunny
@@ -55,6 +63,10 @@ namespace Cunny
         private Vector2 mouseDownPosition;
         private float minHoldDuration = 0.15f;
         private float dragThreshold = 15f;
+
+        //Required
+        public GameObject networkManagerObj;
+        public NetworkManager networkManager;
 
         //Core Values
         public bool IsCunnyLoaded = false;
@@ -215,7 +227,10 @@ namespace Cunny
             {
                 this.FullCunnyReset(); //This is here incase you join someone else's game while in your own game
                 LoggerInstance.Msg("Initializing Framework");
+                PreInitCunny();
                 MelonCoroutines.Start(this.InitCunny());
+
+                //LocatorUtils.PrintAllPrefabs();
             }
             else
             {
@@ -229,6 +244,10 @@ namespace Cunny
 
         private void FullCunnyReset() {
             //Used to reset all variables back to normal (Used in scene transitions)
+
+            //Required
+            networkManagerObj = null;
+            networkManager = null;
 
             // Reset UI Element References
             HomeScreenScrollRect = null;
@@ -254,8 +273,15 @@ namespace Cunny
             // Reset Core Value
             IsCunnyLoaded = false;
         }
+        private void PreInitCunny() //done for immediately required and readily available variables
+        {
+            //NPC Handler
+            networkManagerObj = GameObject.Find("NetworkManager");
+            networkManager = UnityEngine.Object.FindObjectOfType<NetworkManager>();
+        }
         private IEnumerator InitCunny()
-        {   
+        {
+            //UI & Phone
             GameObject HomeScreen = null;
             GameObject Icons = null;
             yield return MelonCoroutines.Start(CoroutineUtils.WaitForObjectByFrame("Player_Local/CameraContainer/Camera/OverlayCamera/GameplayMenu/Phone/phone/HomeScreen/AppIcons/",
@@ -329,7 +355,9 @@ namespace Cunny
             LoggerInstance.Msg("[INIT COMPLETE] Cloned & Cleaned AppUI");
             IsCunnyLoaded = true;
         }
-
+        /*
+         * -------APPS & UI METHODS-------
+         */
         public void ChangeAppIconImage(GameObject appIcon, string ImagePath)
         {
             if (ImagePath == null) { ImagePath = "CunnyFramework\\ExampleIco.png"; }
@@ -423,5 +451,52 @@ namespace Cunny
             ChangeAppIconImage(Ico, IconPath);
             RegisterApp(Ico,Title);
         }
+        /*
+         * -------NPCs & NPC Related Methods-------
+         */
+        //For schedule, all schedule comps are in Il2CppScheduleOne.NPCs.Schedules.NPCEvent_NAME or Il2CppScheduleOne.NPCs.Schedules.NPCSignal_NAME
+        
+
+        /*
+        public IEnumerator CreateNPC(string FullName)
+        {
+            //THIS IS HIGHLY EXPERIMENTAL!!! (I'm trying to figure out how to get NPCs to actually NPC)
+            LoggerInstance.Msg("Attempting to Create CustomNPC");
+            GameObject CloningCandiate = null;
+            //We will clone Peter, because he doesn't have any special functionality
+            yield return MelonCoroutines.Start(CoroutineUtils.WaitForObject("/Peter",
+                (obj) => { CloningCandiate = obj; }, 120f));
+
+            GameObject clone = GameObject.Instantiate(CloningCandiate);
+            //In case we cloned Peter in a save thats late at night, we need to activate their model.
+            clone.transform.Find("Avatar").gameObject.active = true;
+            clone.transform.Find("Capsule").gameObject.active = true;
+            clone.name = FullName.Split(' ')[0];
+            //clone.active = true;
+
+            clone.GetComponent<NPCMovement>().enabled = true;
+
+            Peter NpcComp = clone.GetComponent<Peter>();
+            NpcComp.FirstName = FullName.Split(' ')[0];
+            NpcComp.LastName = FullName.Split(' ')[1];
+
+            LoggerInstance.Msg("Cloned Peter File");
+
+            //Utils.ClearChildren(clone.transform.Find("Schedule"), go => go.name == "NoCurfew");
+
+            clone.transform.position = new Vector3(-71.1625f, 1.68f, 83.6983f);
+
+            //Note: Make either a class or function that will make creating schedules not insanely boring
+
+            //Comps of note that need to be changed
+            //Peter -> NPCInventory
+            //Peter -> NPCHealth
+            //Behavior -> Everything but follow schedule needs to be inactive and disabled (NPCBehavior)
+            //To disable go to the comp itself, and you can use its inherited Behavior.Active and Behavior.Enabled
+
+            //Responses -> NPCResponses_TYPE
+            //
+        }
+        */
     }
 }

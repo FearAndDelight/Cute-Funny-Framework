@@ -57,6 +57,12 @@ namespace Cunny
             callback?.Invoke(obj); // obj will be null if not found within the timeout
         }
 
+        public static IEnumerator Wait(float delay, System.Action callback)
+        {
+            yield return new WaitForSeconds(delay);
+            callback?.Invoke();
+        }
+
     }
 
 }

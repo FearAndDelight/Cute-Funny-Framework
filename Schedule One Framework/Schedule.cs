@@ -37,7 +37,7 @@ namespace Cunny
             GameObject gameObject = GameObject.Find("UI/HUD/NotificationContainer");
             NotificationsManager component = gameObject.GetComponent<NotificationsManager>();
             component.SendNotification(title, subtitle, icon, duration, playSound);
-            Debug.LogWarning("[CUNNY] Schedule.CreateNotification() is a deprecated function that will be removed in future versions! Please use Il2CppScheduleOne.UI.NotificationsManager.Instance.SendNotification() instead!");
+            Core.Instance.LoggerInstance.Warning("[CUNNY] Schedule.CreateNotification() is a deprecated function that will be removed in future versions! Please use Il2CppScheduleOne.UI.NotificationsManager.Instance.SendNotification() instead!");
         }
     }
 }
